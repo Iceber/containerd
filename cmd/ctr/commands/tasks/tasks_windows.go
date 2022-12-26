@@ -29,8 +29,6 @@ import (
 	"github.com/urfave/cli"
 )
 
-var platformStartFlags = []cli.Flag{}
-
 // HandleConsoleResize resizes the console
 func HandleConsoleResize(ctx gocontext.Context, task resizer, con console.Console) error {
 	// do an initial resize of the console
@@ -84,4 +82,15 @@ func NewTask(ctx gocontext.Context, client *containerd.Client, container contain
 
 func getNewTaskOpts(_ *cli.Context) []containerd.NewTaskOpts {
 	return nil
+}
+
+func getNetNSPath(ctx gocontext.Context, t containerd.Task) (string, error) {
+	s, err := t.Spec(ctx)
+	if err != nil {
+		return "", err
+	}
+	if s.Windows == nil || s.Windows.Network == nil {
+		return "", nil
+	}
+	return s.Windows.Network.NetworkNamespace, nil
 }

@@ -21,6 +21,7 @@ package tasks
 import (
 	gocontext "context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"os/signal"
@@ -32,13 +33,6 @@ import (
 	"github.com/urfave/cli"
 	"golang.org/x/sys/unix"
 )
-
-var platformStartFlags = []cli.Flag{
-	cli.BoolFlag{
-		Name:  "no-pivot",
-		Usage: "disable use of pivot-root (linux only)",
-	},
-}
 
 // HandleConsoleResize resizes the console
 func HandleConsoleResize(ctx gocontext.Context, task resizer, con console.Console) error {
@@ -111,4 +105,8 @@ func getNewTaskOpts(context *cli.Context) []containerd.NewTaskOpts {
 		return []containerd.NewTaskOpts{containerd.WithNoPivotRoot}
 	}
 	return nil
+}
+
+func getNetNSPath(_ gocontext.Context, task containerd.Task) (string, error) {
+	return fmt.Sprintf("/proc/%d/ns/net", task.Pid()), nil
 }

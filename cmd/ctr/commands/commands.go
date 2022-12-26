@@ -214,6 +214,29 @@ var (
 			Usage: "username or user id, group optional (format: <name|uid>[:<group|gid>])",
 		},
 	}
+
+	TaskFlags = []cli.Flag{
+		cli.BoolFlag{
+			Name:  "null-io",
+			Usage: "send all IO to /dev/null",
+		},
+		cli.StringFlag{
+			Name:  "log-uri",
+			Usage: "log uri",
+		},
+		cli.StringFlag{
+			Name:  "fifo-dir",
+			Usage: "directory used for storing IO FIFOs",
+		},
+		cli.StringFlag{
+			Name:  "pid-file",
+			Usage: "file path to write the task's pid",
+		},
+		cli.BoolFlag{
+			Name:  "detach,d",
+			Usage: "detach from the task after it has started execution",
+		},
+	}
 )
 
 // ObjectWithLabelArgs returns the first arg and a LabelArgs object

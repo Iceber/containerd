@@ -23,15 +23,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/containerd/console"
 	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/cmd/ctr/commands"
 	"github.com/containerd/containerd/cmd/ctr/commands/tasks"
 	"github.com/containerd/containerd/containers"
 	clabels "github.com/containerd/containerd/labels"
 	"github.com/containerd/containerd/oci"
-	gocni "github.com/containerd/go-cni"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
@@ -128,17 +125,10 @@ var Command = cli.Command{
 			commands.ContainerFlags...)...)...),
 	Action: func(context *cli.Context) error {
 		var (
-			err error
 			id  string
 			ref string
-
-			tty       = context.Bool("tty")
-			detach    = context.Bool("detach")
-			config    = context.IsSet("config")
-			enableCNI = context.Bool("cni")
 		)
-
-		if config {
+		if context.IsSet("config") {
 			id = context.Args().First()
 			if context.NArg() > 1 {
 				return errors.New("with spec config file, only container id should be provided")
@@ -146,7 +136,6 @@ var Command = cli.Command{
 		} else {
 			id = context.Args().Get(1)
 			ref = context.Args().First()
-
 			if ref == "" {
 				return errors.New("image ref must be provided")
 			}
@@ -154,96 +143,23 @@ var Command = cli.Command{
 		if id == "" {
 			return errors.New("container id must be provided")
 		}
+
 		client, ctx, cancel, err := commands.NewClient(context)
 		if err != nil {
 			return err
 		}
 		defer cancel()
+
 		container, err := NewContainer(ctx, client, context)
 		if err != nil {
 			return err
 		}
-		if context.Bool("rm") && !detach {
+
+		if context.Bool("rm") && !context.Bool("detach") {
 			defer container.Delete(ctx, containerd.WithSnapshotCleanup)
 		}
-		var con console.Console
-		if tty {
-			con = console.Current()
-			defer con.Reset()
-			if err := con.SetRaw(); err != nil {
-				return err
-			}
-		}
-		var network gocni.CNI
-		if enableCNI {
-			if network, err = gocni.New(gocni.WithDefaultConf); err != nil {
-				return err
-			}
-		}
 
-		opts := getNewTaskOpts(context)
-		ioOpts := []cio.Opt{cio.WithFIFODir(context.String("fifo-dir"))}
-		task, err := tasks.NewTask(ctx, client, container, context.String("checkpoint"), con, context.Bool("null-io"), context.String("log-uri"), ioOpts, opts...)
-		if err != nil {
-			return err
-		}
-
-		var statusC <-chan containerd.ExitStatus
-		if !detach {
-			defer func() {
-				if enableCNI {
-					if err := network.Remove(ctx, commands.FullID(ctx, container), ""); err != nil {
-						logrus.WithError(err).Error("network review")
-					}
-				}
-				task.Delete(ctx)
-			}()
-
-			if statusC, err = task.Wait(ctx); err != nil {
-				return err
-			}
-		}
-		if context.IsSet("pid-file") {
-			if err := commands.WritePidFile(context.String("pid-file"), int(task.Pid())); err != nil {
-				return err
-			}
-		}
-		if enableCNI {
-			netNsPath, err := getNetNSPath(ctx, task)
-			if err != nil {
-				return err
-			}
-
-			if _, err := network.Setup(ctx, commands.FullID(ctx, container), netNsPath); err != nil {
-				return err
-			}
-		}
-		if err := task.Start(ctx); err != nil {
-			return err
-		}
-		if detach {
-			return nil
-		}
-		if tty {
-			if err := tasks.HandleConsoleResize(ctx, task, con); err != nil {
-				logrus.WithError(err).Error("console resize")
-			}
-		} else {
-			sigc := commands.ForwardAllSignals(ctx, task)
-			defer commands.StopCatch(sigc)
-		}
-		status := <-statusC
-		code, _, err := status.Result()
-		if err != nil {
-			return err
-		}
-		if _, err := task.Delete(ctx); err != nil {
-			return err
-		}
-		if code != 0 {
-			return cli.NewExitError("", int(code))
-		}
-		return nil
+		return tasks.StartTask(ctx, client, context, container)
 	},
 }
 

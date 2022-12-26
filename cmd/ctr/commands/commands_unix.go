@@ -43,4 +43,10 @@ func init() {
 		Name:  "device",
 		Usage: "file path to a device to add to the container; or a path to a directory tree of devices to add to the container",
 	})
+
+	TaskFlags = append(TaskFlags,
+		cli.BoolFlag{
+			Name:  "no-pivot",
+			Usage: "disable use of pivot-root (linux only)",
+		})
 }
