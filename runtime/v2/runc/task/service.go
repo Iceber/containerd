@@ -52,7 +52,7 @@ import (
 )
 
 var (
-	_     = (taskAPI.TaskService)(&service{})
+	_     = shim.TTRPCService(&service{})
 	empty = &ptypes.Empty{}
 )
 
